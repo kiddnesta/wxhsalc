@@ -267,6 +267,7 @@ namespace ClashXW
                 onTunModeToggle: OnTunModeToggle,
                 onOpenDashboard: OnOpenDashboard,
                 onTestLatency: OnTestLatency,
+                onUpdateProviders: OnUpdateProviders,
                 onConfigSelected: OnConfigSelected,
                 onReloadConfig: OnReloadConfig,
                 onEditConfig: OnEditConfig,
@@ -477,6 +478,28 @@ namespace ClashXW
             catch (Exception ex)
             {
                 ShowBalloonTip("Error", $"Failed to run latency tests: {ex.Message}", ToolTipIcon.Error);
+            }
+        }
+
+        private async void OnUpdateProviders()
+        {
+            if (_apiService == null) return;
+
+            try
+            {
+                var updatedProviders = await _apiService.UpdateProxyProvidersAsync();
+                if (updatedProviders.Count == 0)
+                {
+                    ShowBalloonTip("Info", "No HTTP providers configured", ToolTipIcon.Info);
+                    return;
+                }
+
+                await RefreshCachedDataAsync();
+                ShowBalloonTip("Success", $"Updated {updatedProviders.Count} provider(s)", ToolTipIcon.Info);
+            }
+            catch (Exception ex)
+            {
+                ShowBalloonTip("Error", $"Failed to update providers: {ex.Message}", ToolTipIcon.Error);
             }
         }
 

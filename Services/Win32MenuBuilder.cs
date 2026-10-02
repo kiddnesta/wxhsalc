@@ -20,6 +20,7 @@ namespace ClashXW.Services
             Action<bool> onTunModeToggle,
             Action onOpenDashboard,
             Action onTestLatency,
+            Action onUpdateProviders,
             Action<string> onConfigSelected,
             Action onReloadConfig,
             Action onEditConfig,
@@ -56,6 +57,8 @@ namespace ClashXW.Services
             menu.AddItemWithShortcut("Open Dashboard\tCtrl+D", onOpenDashboard,
                 Keys.D, ctrl: true, alt: false);
             menu.AddItem("Test Latency", onTestLatency);
+            menu.AddItemWithShortcut("Update Providers\tCtrl+U", onUpdateProviders,
+                Keys.U, ctrl: true, alt: false);
 
             // Configuration submenu
             BuildConfigSubMenu(menu, currentConfigPath, onConfigSelected, onReloadConfig, onEditConfig, onOpenConfigFolder);

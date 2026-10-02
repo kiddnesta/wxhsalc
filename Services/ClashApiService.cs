@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -74,6 +75,42 @@ namespace ClashXW.Services
                 var errorContent = await response.Content.ReadAsStringAsync();
                 throw new HttpRequestException($"Status: {response.StatusCode}, Response: {errorContent}");
             }
+        }
+
+        public async Task<IReadOnlyList<string>> UpdateProxyProvidersAsync()
+        {
+            if (string.IsNullOrEmpty(_apiBaseUrl)) return Array.Empty<string>();
+
+            using var providersResponse = await _httpClient.GetAsync($"{_apiBaseUrl}/providers/proxies");
+            providersResponse.EnsureSuccessStatusCode();
+
+            using var document = JsonDocument.Parse(await providersResponse.Content.ReadAsStringAsync());
+            if (!document.RootElement.TryGetProperty("providers", out var providers)
+                || providers.ValueKind != JsonValueKind.Object)
+            {
+                return Array.Empty<string>();
+            }
+
+            var providerNames = providers.EnumerateObject()
+                .Where(provider => provider.Value.TryGetProperty("vehicleType", out var vehicleType)
+                    && vehicleType.ValueKind == JsonValueKind.String
+                    && string.Equals(vehicleType.GetString(), "HTTP", StringComparison.OrdinalIgnoreCase))
+                .Select(provider => provider.Name)
+                .ToList();
+
+            foreach (var providerName in providerNames)
+            {
+                using var response = await _httpClient.PutAsync(
+                    $"{_apiBaseUrl}/providers/proxies/{Uri.EscapeDataString(providerName)}", null);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new HttpRequestException(
+                        $"Failed to update provider '{providerName}' (HTTP {(int)response.StatusCode}).");
+                }
+            }
+
+            return providerNames;
         }
 
         public async Task TestGroupLatencyAsync(string groupName)
