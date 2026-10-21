@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.2 - 2026-10-22
+
+### Fixed
+
+- Show operation results in a small, non-activating ClashXW popup instead of relying on Windows tray balloons, which could be silently suppressed even when the app logged a successful notification call.
+- Add a `--test-notification` diagnostic that displays the popup without starting Mihomo or interrupting a running ClashXW instance.
+
 ## v0.4.1 - 2026-10-22
 
 ### Fixed

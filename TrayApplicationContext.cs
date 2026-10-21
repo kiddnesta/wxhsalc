@@ -29,6 +29,7 @@ namespace ClashXW
         private ProxiesResponse? _cachedProxies;
         private ProxyProvidersResponse? _cachedProxyProviders;
         private DashboardForm? _dashboardForm;
+        private StatusToastForm? _statusToast;
         private bool _isSystemProxyEnabled;
         private bool _isTunEnabled;
 
@@ -623,6 +624,7 @@ namespace ClashXW
             }
 
             _clashProcessService?.Dispose();
+            _statusToast?.Close();
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
             _messageWindow.DestroyHandle();
@@ -644,21 +646,26 @@ namespace ClashXW
         {
             try
             {
-                // Re-register the tray icon before showing feedback. Windows can keep the
-                // icon visible while silently dropping balloon notifications after a long
-                // running session or an Explorer notification-area refresh.
-                _notifyIcon.Visible = false;
-                _notifyIcon.BalloonTipTitle = title;
-                _notifyIcon.BalloonTipText = text;
-                _notifyIcon.BalloonTipIcon = icon;
-                _notifyIcon.Visible = true;
-                _notifyIcon.ShowBalloonTip(5000);
-
-                Logger.Info($"Notification submitted: Title={title}, Icon={icon}, TextLength={text.Length}");
+                _statusToast?.Close();
+                _statusToast = new StatusToastForm(title, text, icon);
+                _statusToast.Show();
+                Logger.Info($"Status popup displayed: Title={title}, Icon={icon}, TextLength={text.Length}");
             }
             catch (Exception ex)
             {
-                Logger.Error($"Failed to show notification: Title={title}, Icon={icon}", ex);
+                Logger.Error($"Failed to show status popup: Title={title}, Icon={icon}", ex);
+                // Keep the system notification as a fallback if creating a window fails.
+                try
+                {
+                    _notifyIcon.BalloonTipTitle = title;
+                    _notifyIcon.BalloonTipText = text;
+                    _notifyIcon.BalloonTipIcon = icon;
+                    _notifyIcon.ShowBalloonTip(5000);
+                }
+                catch (Exception fallbackError)
+                {
+                    Logger.Error("Failed to show fallback notification", fallbackError);
+                }
             }
         }
 
@@ -666,6 +673,7 @@ namespace ClashXW
         {
             if (disposing)
             {
+                _statusToast?.Dispose();
                 _notifyIcon.Dispose();
                 _messageWindow.DestroyHandle();
                 _clashProcessService?.Dispose();

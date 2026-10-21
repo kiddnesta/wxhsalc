@@ -11,8 +11,19 @@ namespace ClashXW
         private static Mutex? _mutex;
 
         [STAThread]
-        static void Main()
+        static void Main(string[] args)
         {
+            // This diagnostic can run alongside the main instance without touching Mihomo.
+            if (args.Length == 1 && args[0] == "--test-notification")
+            {
+                Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Application.Run(new StatusToastForm("Notification test",
+                    "ClashXW can display operation results.", ToolTipIcon.Info));
+                return;
+            }
+
             _mutex = new Mutex(true, MutexName, out bool createdNew);
             if (!createdNew)
             {
