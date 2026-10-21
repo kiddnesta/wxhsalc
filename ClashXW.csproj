@@ -3,9 +3,9 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
-    <Version>0.4.0</Version>
-    <AssemblyVersion>0.4.0.0</AssemblyVersion>
-    <FileVersion>0.4.0.0</FileVersion>
+    <Version>0.4.1</Version>
+    <AssemblyVersion>0.4.1.0</AssemblyVersion>
+    <FileVersion>0.4.1.0</FileVersion>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -30,10 +30,10 @@
     <EmbeddedResource Include="Resources\default-config.yaml" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="..\ClashAssets\**\*">
+  <ItemGroup Condition="Exists('..\ClashAssets\clash.exe')">
+    <None Include="..\ClashAssets\clash.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>ClashAssets\%(RecursiveDir)%(FileName)%(Extension)</Link>
+      <Link>ClashAssets\clash.exe</Link>
     </None>
   </ItemGroup>
 

@@ -10,6 +10,7 @@ This is a fork mainly with human-machine interface improvements & personal prefe
 - Remembers window size and placements.
   - Multi-monitor set-up should work but not tested.
 - Update all HTTP proxy providers independently from the tray menu with **Update Providers** (`Ctrl+U`).
+- Test only HTTP proxy-provider nodes with **Test Latency**; results are shown beside each node as a delay, timeout, or no-result state.
 - Supports Mihomo's built-in Tailscale outbound when used with Mihomo v1.19.25 or newer.
 - Use multi-column context menu ( in another branch ).
   - Dark mode for this kind of context menu is not working.

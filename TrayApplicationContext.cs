@@ -27,6 +27,7 @@ namespace ClashXW
         // Cache for menu state
         private ClashConfig? _cachedConfigs;
         private ProxiesResponse? _cachedProxies;
+        private ProxyProvidersResponse? _cachedProxyProviders;
         private DashboardForm? _dashboardForm;
         private bool _isSystemProxyEnabled;
         private bool _isTunEnabled;
@@ -222,6 +223,16 @@ namespace ClashXW
                 _cachedConfigs = await configsTask;
                 _cachedProxies = await proxiesTask;
 
+                try
+                {
+                    _cachedProxyProviders = await _apiService.GetProxyProvidersAsync();
+                }
+                catch (Exception ex)
+                {
+                    _cachedProxyProviders = null;
+                    Debug.WriteLine($"Failed to fetch proxy providers: {ex.Message}");
+                }
+
                 // Sync TUN and system proxy states
                 var tunChanged = false;
                 var proxyChanged = false;
@@ -259,6 +270,7 @@ namespace ClashXW
             using var menu = _menuBuilder.BuildMenu(
                 _cachedConfigs,
                 _cachedProxies,
+                _cachedProxyProviders,
                 _currentConfigPath,
                 onModeSelected: OnModeSelected,
                 onProxyNodeSelected: OnProxyNodeSelected,
@@ -319,7 +331,18 @@ namespace ClashXW
                 var group = _cachedProxies?.Proxies?.GetValueOrDefault(groupName);
                 if (group == null) return;
 
-                if (IsAutoGroup(group))
+                var groupNodeNames = new System.Collections.Generic.HashSet<string>(
+                    group.All ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+                var matchingProviders = GetHttpProviders()
+                    .Where(provider => provider.Proxies.Any(node => groupNodeNames.Contains(node.Name)))
+                    .ToList();
+
+                if (matchingProviders.Count > 0)
+                {
+                    await Task.WhenAll(matchingProviders.Select(provider =>
+                        _apiService.TestProxyProviderLatencyAsync(provider.Name)));
+                }
+                else if (IsAutoGroup(group))
                 {
                     await _apiService.TestGroupLatencyAsync(groupName);
                 }
@@ -333,7 +356,12 @@ namespace ClashXW
                     await Task.WhenAll(tasks);
                 }
 
-                ShowBalloonTip("Success", $"Latency test completed for {groupName}", ToolTipIcon.Info);
+                await RefreshCachedDataAsync();
+                var (available, total) = GetProviderLatencySummary(groupNodeNames);
+                var message = total > 0
+                    ? $"{groupName}: {available}/{total} provider nodes available"
+                    : $"Latency test completed for {groupName}";
+                ShowBalloonTip("Latency Test", message, ToolTipIcon.Info);
             }
             catch (Exception ex)
             {
@@ -444,41 +472,48 @@ namespace ClashXW
 
         private async void OnTestLatency()
         {
-            if (_apiService == null || _cachedProxies?.Proxies == null) return;
+            if (_apiService == null) return;
 
             try
             {
-                var latencyTasks = new System.Collections.Generic.List<Task>();
-
-                foreach (var proxy in _cachedProxies.Proxies.Values)
+                var providers = GetHttpProviders();
+                if (providers.Count == 0)
                 {
-                    if (proxy.All is { Count: > 0 })
-                    {
-                        if (IsAutoGroup(proxy))
-                        {
-                            latencyTasks.Add(_apiService.TestGroupLatencyAsync(proxy.Name));
-                        }
-                        else
-                        {
-                            foreach (var nodeName in proxy.All)
-                            {
-                                latencyTasks.Add(_apiService.TestProxyLatencyAsync(nodeName));
-                            }
-                        }
-                    }
-                    else
-                    {
-                        latencyTasks.Add(_apiService.TestProxyLatencyAsync(proxy.Name));
-                    }
+                    ShowBalloonTip("Latency Test", "No HTTP provider nodes found", ToolTipIcon.Info);
+                    return;
                 }
 
-                await Task.WhenAll(latencyTasks);
-                ShowBalloonTip("Success", "Latency tests completed", ToolTipIcon.Info);
+                await Task.WhenAll(providers.Select(provider =>
+                    _apiService.TestProxyProviderLatencyAsync(provider.Name)));
+                await RefreshCachedDataAsync();
+
+                var (available, total) = GetProviderLatencySummary();
+                ShowBalloonTip("Latency Test", $"{available}/{total} provider nodes available", ToolTipIcon.Info);
             }
             catch (Exception ex)
             {
-                ShowBalloonTip("Error", $"Failed to run latency tests: {ex.Message}", ToolTipIcon.Error);
+                ShowBalloonTip("Latency Test Failed", $"Provider nodes were not updated: {ex.Message}", ToolTipIcon.Error);
             }
+        }
+
+        private System.Collections.Generic.List<ProxyProvider> GetHttpProviders()
+        {
+            return _cachedProxyProviders?.Providers.Values
+                .Where(provider => provider.VehicleType.Equals("HTTP", StringComparison.OrdinalIgnoreCase))
+                .ToList() ?? new System.Collections.Generic.List<ProxyProvider>();
+        }
+
+        private (int Available, int Total) GetProviderLatencySummary(
+            System.Collections.Generic.HashSet<string>? nodeFilter = null)
+        {
+            var nodes = GetHttpProviders()
+                .SelectMany(provider => provider.Proxies)
+                .Where(node => nodeFilter == null || nodeFilter.Contains(node.Name))
+                .GroupBy(node => node.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
+            var available = nodes.Count(node => node.History?.LastOrDefault()?.Delay > 0);
+            return (available, nodes.Count);
         }
 
         private async void OnUpdateProviders()
@@ -607,7 +642,24 @@ namespace ClashXW
 
         private void ShowBalloonTip(string title, string text, ToolTipIcon icon)
         {
-            _notifyIcon.ShowBalloonTip(3000, title, text, icon);
+            try
+            {
+                // Re-register the tray icon before showing feedback. Windows can keep the
+                // icon visible while silently dropping balloon notifications after a long
+                // running session or an Explorer notification-area refresh.
+                _notifyIcon.Visible = false;
+                _notifyIcon.BalloonTipTitle = title;
+                _notifyIcon.BalloonTipText = text;
+                _notifyIcon.BalloonTipIcon = icon;
+                _notifyIcon.Visible = true;
+                _notifyIcon.ShowBalloonTip(5000);
+
+                Logger.Info($"Notification submitted: Title={title}, Icon={icon}, TextLength={text.Length}");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"Failed to show notification: Title={title}, Icon={icon}", ex);
+            }
         }
 
         protected override void Dispose(bool disposing)

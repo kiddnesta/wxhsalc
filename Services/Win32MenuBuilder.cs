@@ -12,6 +12,7 @@ namespace ClashXW.Services
         public Win32Menu BuildMenu(
             ClashConfig? configs,
             ProxiesResponse? proxies,
+            ProxyProvidersResponse? proxyProviders,
             string currentConfigPath,
             Action<string> onModeSelected,
             Action<string, string> onProxyNodeSelected,
@@ -37,7 +38,7 @@ namespace ClashXW.Services
             // Proxy groups (dynamic)
             if (proxies?.Proxies != null)
             {
-                BuildProxyGroupMenus(menu, proxies, onProxyNodeSelected, onTestGroupLatency);
+                BuildProxyGroupMenus(menu, proxies, proxyProviders, onProxyNodeSelected, onTestGroupLatency);
                 menu.AddSeparator();
             }
 
@@ -91,7 +92,8 @@ namespace ClashXW.Services
                 currentMode.Equals("global", StringComparison.OrdinalIgnoreCase));
         }
 
-        private void BuildProxyGroupMenus(Win32Menu menu, ProxiesResponse proxies, Action<string, string> onProxyNodeSelected, Action<string> onTestGroupLatency)
+        private void BuildProxyGroupMenus(Win32Menu menu, ProxiesResponse proxies, ProxyProvidersResponse? proxyProviders,
+            Action<string, string> onProxyNodeSelected, Action<string> onTestGroupLatency)
         {
             var orderedGroups = proxies.Proxies.TryGetValue("GLOBAL", out var globalGroup) && globalGroup.All != null
                 ? globalGroup.All
@@ -107,16 +109,19 @@ namespace ClashXW.Services
 
             foreach (var group in selectorGroups)
             {
-                BuildProxyGroupSubMenu(menu, group, proxies.Proxies, onProxyNodeSelected, onTestGroupLatency);
+                BuildProxyGroupSubMenu(menu, group, proxies.Proxies, proxyProviders, onProxyNodeSelected, onTestGroupLatency);
             }
         }
 
         private void BuildProxyGroupSubMenu(Win32Menu menu, ProxyNode group, Dictionary<string, ProxyNode> allProxies,
-            Action<string, string> onProxyNodeSelected, Action<string> onTestGroupLatency)
+            ProxyProvidersResponse? proxyProviders, Action<string, string> onProxyNodeSelected,
+            Action<string> onTestGroupLatency)
         {
-            var groupLatency = GetLatestLatency(group);
-            var headerText = groupLatency.HasValue
-                ? $"{group.Name} ({group.Now})\t{groupLatency}ms"
+            var groupLatency = group.Now != null
+                ? GetNodeLatencyLabel(group.Now, allProxies, proxyProviders)
+                : GetLatestLatencyLabel(group);
+            var headerText = groupLatency != null
+                ? $"{group.Name} ({group.Now})\t{groupLatency}"
                 : $"{group.Name} ({group.Now})";
 
             var groupMenu = menu.AddSubMenu(headerText);
@@ -129,8 +134,8 @@ namespace ClashXW.Services
             foreach (var nodeName in group.All ?? new List<string>())
             {
                 var isSelected = nodeName.Equals(group.Now, StringComparison.OrdinalIgnoreCase);
-                var nodeLatency = GetNodeLatency(nodeName, allProxies);
-                var nodeText = nodeLatency.HasValue ? $"{nodeName}\t{nodeLatency}ms" : nodeName;
+                var nodeLatency = GetNodeLatencyLabel(nodeName, allProxies, proxyProviders);
+                var nodeText = nodeLatency != null ? $"{nodeName}\t{nodeLatency}" : nodeName;
 
                 groupMenu.AddItem(nodeText, () => onProxyNodeSelected(group.Name, nodeName), isSelected);
             }
@@ -181,16 +186,36 @@ namespace ClashXW.Services
             return null;
         }
 
-        private int? GetLatestLatency(ProxyNode proxy)
+        private string? GetLatestLatencyLabel(ProxyNode proxy)
         {
-            return proxy.History?.LastOrDefault()?.Delay;
+            var delay = proxy.History?.LastOrDefault()?.Delay;
+            return delay switch
+            {
+                > 0 => $"{delay}ms",
+                0 => "Timeout",
+                _ => null
+            };
         }
 
-        private int? GetNodeLatency(string nodeName, Dictionary<string, ProxyNode> allProxies)
+        private string? GetNodeLatencyLabel(string nodeName, Dictionary<string, ProxyNode> allProxies,
+            ProxyProvidersResponse? proxyProviders)
         {
+            if (proxyProviders?.Providers != null)
+            {
+                foreach (var provider in proxyProviders.Providers.Values)
+                {
+                    var providerNode = provider.Proxies.FirstOrDefault(node =>
+                        node.Name.Equals(nodeName, StringComparison.OrdinalIgnoreCase));
+                    if (providerNode != null)
+                    {
+                        return GetLatestLatencyLabel(providerNode) ?? "No result";
+                    }
+                }
+            }
+
             if (allProxies.TryGetValue(nodeName, out var node))
             {
-                return GetLatestLatency(node);
+                return GetLatestLatencyLabel(node);
             }
             return null;
         }

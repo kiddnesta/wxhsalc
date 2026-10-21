@@ -68,10 +68,22 @@ jobs:
         # The executable inside the zip is named mihomo-windows-amd64-v3.exe (without version)
         Move-Item -Path "mihomo_temp\mihomo-windows-amd64-v3.exe" -Destination "ClashAssets\clash.exe" -Force
 
-    - name: Copy ClashAssets to Publish Directory
+    - name: Download GeoIP Database
       shell: pwsh
       run: |
-        Copy-Item -Path "ClashAssets" -Destination "bin/Release/net8.0-windows/win-x64/publish/" -Recurse -Force
+        $geoipUrl = "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.metadb"
+        Invoke-WebRequest -Uri $geoipUrl -OutFile "ClashAssets/geoip.metadb"
+        if ((Get-Item "ClashAssets/geoip.metadb").Length -lt 1000000) {
+          throw "Downloaded GeoIP database is unexpectedly small"
+        }
+
+    - name: Copy release assets to Publish Directory
+      shell: pwsh
+      run: |
+        $assetDirectory = "bin/Release/net8.0-windows/win-x64/publish/ClashAssets"
+        New-Item -ItemType Directory -Force -Path $assetDirectory | Out-Null
+        Copy-Item -LiteralPath "ClashAssets/clash.exe" -Destination $assetDirectory -Force
+        Copy-Item -LiteralPath "ClashAssets/geoip.metadb" -Destination $assetDirectory -Force
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
@@ -86,8 +98,11 @@ jobs:
         # Create a temporary directory for release files (excluding PDB)
         New-Item -ItemType Directory -Force -Path "release_temp"
         
-        # Copy all files except .pdb files
-        Copy-Item -Path "bin/Release/net8.0-windows/win-x64/publish/*" -Destination "release_temp/" -Recurse -Force -Exclude "*.pdb"
+        # Use an allowlist so runtime caches and personal configuration cannot enter releases.
+        Copy-Item -LiteralPath "bin/Release/net8.0-windows/win-x64/publish/ClashXW.exe" -Destination "release_temp/"
+        New-Item -ItemType Directory -Force -Path "release_temp/ClashAssets" | Out-Null
+        Copy-Item -LiteralPath "bin/Release/net8.0-windows/win-x64/publish/ClashAssets/clash.exe" -Destination "release_temp/ClashAssets/"
+        Copy-Item -LiteralPath "bin/Release/net8.0-windows/win-x64/publish/ClashAssets/geoip.metadb" -Destination "release_temp/ClashAssets/"
         
         # Create zip archive
         Compress-Archive -Path "release_temp/*" -DestinationPath "ClashXW-windows.zip" -Force

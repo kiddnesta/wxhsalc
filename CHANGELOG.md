@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.1 - 2026-10-22
+
+### Fixed
+
+- Changed **Test Latency** to use Mihomo's proxy-provider health-check API and test only HTTP provider nodes.
+- Reloaded provider histories after testing so delay, timeout, and no-result states appear in the tray menus without blank status fields.
+- Replaced the unconditional success message with an available/total provider-node summary.
+- Re-register the tray icon before operation notifications so update, latency-test, and configuration-reload results remain visible after long-running sessions or notification-area refreshes.
+- Added diagnostic logging whenever a tray notification is submitted or fails.
+- Bundled the GeoIP database in release archives so configurations with `GEOIP` rules can start without a first-run download.
+
 ## v0.4.0 - 2026-10-02
 
 ### Added

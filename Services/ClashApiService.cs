@@ -37,6 +37,12 @@ namespace ClashXW.Services
             return _httpClient.GetFromJsonAsync<ProxiesResponse>($"{_apiBaseUrl}/proxies");
         }
 
+        public Task<ProxyProvidersResponse?> GetProxyProvidersAsync()
+        {
+            if (string.IsNullOrEmpty(_apiBaseUrl)) return Task.FromResult<ProxyProvidersResponse?>(null);
+            return _httpClient.GetFromJsonAsync<ProxyProvidersResponse>($"{_apiBaseUrl}/providers/proxies");
+        }
+
         public Task UpdateModeAsync(string newMode)
         {
             if (string.IsNullOrEmpty(_apiBaseUrl)) return Task.CompletedTask;
@@ -128,6 +134,21 @@ namespace ClashXW.Services
             catch
             {
                 // Ignore errors - latency test failures are not critical
+            }
+        }
+
+        public async Task TestProxyProviderLatencyAsync(string providerName)
+        {
+            if (string.IsNullOrEmpty(_apiBaseUrl)) return;
+
+            using var response = await _httpClient.GetAsync(
+                $"{_apiBaseUrl}/providers/proxies/{Uri.EscapeDataString(providerName)}/healthcheck");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                throw new HttpRequestException(
+                    $"Failed to test provider '{providerName}' (HTTP {(int)response.StatusCode}): {errorContent}");
             }
         }
 

@@ -20,4 +20,14 @@ namespace ClashXW.Models
     public record ProxiesResponse(
         [property: JsonPropertyName("proxies")] Dictionary<string, ProxyNode> Proxies
     );
+
+    public record ProxyProvider(
+        [property: JsonPropertyName("name")] string Name,
+        [property: JsonPropertyName("vehicleType")] string VehicleType,
+        [property: JsonPropertyName("proxies")] IReadOnlyList<ProxyNode> Proxies
+    );
+
+    public record ProxyProvidersResponse(
+        [property: JsonPropertyName("providers")] Dictionary<string, ProxyProvider> Providers
+    );
 }
